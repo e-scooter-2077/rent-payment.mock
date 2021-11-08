@@ -1,0 +1,97 @@
+name: Continuous Integration
+
+env:
+  OUTPUT_DIR: publish
+  RELEASE_PREFIX: Azure Function Template
+  AZURE_FUNCTIONAPP_NAME: ''
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "*"
+      
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-20.04
+    outputs:
+      version: ${{ steps.semver.outputs.version }}
+      should-release: ${{ steps.semver.outputs.should-release }}
+      is-prerelease: ${{ steps.semver.outputs.is-github-prerelease }}
+      should-deploy: ${{ env.AZURE_FUNCTIONAPP_NAME != '' }}
+    steps:
+      - id: semver
+        name: Checkout
+        uses: EasyDesk/action-semver-checkout@v1
+      - name: Setup .NET Core 3 SDK
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 3.x
+      - name: Setup .NET 5 SDK
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 5.x
+      - name: Build sources
+        uses: EasyDesk/action-dotnet-build@v1
+        with:
+          warnings-as-errors: true
+      - name: Test
+        uses: EasyDesk/action-dotnet-test@v1
+      - name: Publish
+        uses: EasyDesk/action-dotnet-publish@v1
+        with:
+          output-dir: ${{ env.OUTPUT_DIR }}
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: build-artifacts
+          path: ${{ env.OUTPUT_DIR }}
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-20.04
+    needs: [build]
+    if: needs.build.outputs.should-release == 'true'
+    concurrency: release
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: build-artifacts
+      - name: Zip build assets
+        run: zip -r assets ./*
+      - name: Release
+        uses: EasyDesk/action-semver-release@v1
+        with:
+          version: ${{ needs.build.outputs.version }}
+          prerelease: ${{ needs.build.outputs.is-prerelease }}
+          files: |
+            assets.zip
+  deploy:
+    name: Deploy to Azure Function App
+    runs-on: ubuntu-20.04
+    needs: [build, release]
+    if: needs.build.outputs.should-deploy == 'true'
+    concurrency: deploy
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: build-artifacts
+      - name: Setup .NET Core 3 SDK
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 3.x
+      - name: Setup .NET 5 SDK
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 5.x
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Deploy to Function App
+        uses: Azure/functions-action@v1
+        with:
+          package: .
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
