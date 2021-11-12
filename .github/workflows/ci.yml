@@ -3,7 +3,7 @@ name: Continuous Integration
 env:
   OUTPUT_DIR: publish
   RELEASE_PREFIX: Azure Function Template
-  AZURE_FUNCTIONAPP_NAME: ''
+  AZURE_FUNCTIONAPP_NAME: rent-payment-mock
 
 on:
   workflow_dispatch:
@@ -21,7 +21,6 @@ jobs:
       version: ${{ steps.semver.outputs.version }}
       should-release: ${{ steps.semver.outputs.should-release }}
       is-prerelease: ${{ steps.semver.outputs.is-github-prerelease }}
-      should-deploy: ${{ env.AZURE_FUNCTIONAPP_NAME != '' }}
     steps:
       - id: semver
         name: Checkout
@@ -72,7 +71,6 @@ jobs:
     name: Deploy to Azure Function App
     runs-on: ubuntu-20.04
     needs: [build, release]
-    if: needs.build.outputs.should-deploy == 'true'
     concurrency: deploy
     steps:
       - uses: actions/download-artifact@v2
