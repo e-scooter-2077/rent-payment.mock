@@ -13,11 +13,14 @@ using System;
 
 namespace EScooter.RentPayment
 {
+    public record RentRequested(Guid RentId);
+
+    public record RentPaymentAuthorized(Guid RentId, Timestamp StartTime) : ExternalEvent;
+
     public static class AuthorizeRent
     {
-        public record RentRequested(Guid RentId);
-
-        public record RentPaymentAuthorized(Guid RentId, Timestamp StartTime) : ExternalEvent;
+        private static readonly IJsonSerializer _jsonSerializer = CreateSerializer();
+        private static readonly IExternalEventPublisher _publisher = CreatePublisher(_jsonSerializer);
 
         [Function("AuthorizeRent")]
         public static void Run(
@@ -25,11 +28,9 @@ namespace EScooter.RentPayment
             FunctionContext context)
         {
             var logger = context.GetLogger("AuthorizeRent");
-            var serializer = CreateSerializer();
-            var publisher = CreatePublisher(serializer);
 
-            var rentId = serializer.Deserialize<RentRequested>(messageContent).RentId;
-            publisher.Publish(new RentPaymentAuthorized(rentId, Timestamp.Now));
+            var rentId = _jsonSerializer.Deserialize<RentRequested>(messageContent).RentId;
+            _publisher.Publish(new RentPaymentAuthorized(rentId, Timestamp.Now));
 
             logger.LogInformation($"Handled event of type {typeof(RentRequested).Name} for rent '{rentId}'");
         }
