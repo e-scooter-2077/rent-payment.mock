@@ -4,7 +4,6 @@ using EasyDesk.CleanArchitecture.Application.Json;
 using EasyDesk.CleanArchitecture.Infrastructure.Events.ServiceBus;
 using EasyDesk.CleanArchitecture.Infrastructure.Json;
 using EasyDesk.CleanArchitecture.Infrastructure.Time;
-using EasyDesk.Tools.PrimitiveTypes.DateAndTime;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -15,7 +14,7 @@ namespace EScooter.RentPayment
 {
     public record RentRequested(Guid RentId);
 
-    public record RentPaymentAuthorized(Guid RentId, Timestamp StartTime) : ExternalEvent;
+    public record RentPaymentAuthorized(Guid RentId, DateTime StartTime) : ExternalEvent;
 
     public static class AuthorizeRent
     {
@@ -30,7 +29,7 @@ namespace EScooter.RentPayment
             var logger = context.GetLogger("AuthorizeRent");
 
             var rentId = _jsonSerializer.Deserialize<RentRequested>(messageContent).RentId;
-            _publisher.Publish(new RentPaymentAuthorized(rentId, Timestamp.Now));
+            _publisher.Publish(new RentPaymentAuthorized(rentId, DateTime.UtcNow));
 
             logger.LogInformation($"Handled event of type {typeof(RentRequested).Name} for rent '{rentId}'");
         }
